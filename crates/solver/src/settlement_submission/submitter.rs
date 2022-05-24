@@ -85,13 +85,17 @@ pub struct CancelHandle {
 #[async_trait::async_trait]
 pub trait TransactionSubmitting: Send + Sync {
     /// Submits transation to the specific network (public mempool, eden, flashbots...).
-    /// Returns transaction handle
+    /// Returns Ok(Some(TransactionHandle)) if a new transaction has been submitted, Err(_) if some error happened
+    /// and Ok(None) if the node already is aware of the particular transaction. The last case usually only happens
+    /// when then Eden network already knows about a transaction from the public mempool.
     async fn submit_transaction(
         &self,
         tx: TransactionBuilder<DynTransport>,
-    ) -> Result<TransactionHandle>;
-    /// Cancels already submitted transaction using the cancel handle
-    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<TransactionHandle>;
+    ) -> Result<Option<TransactionHandle>>;
+    /// Cancels already submitted transaction using the cancel handle.
+    /// Returns Ok(Some(TransationHandle)) if a new cancellation has been submitted, Err(_) if some error occurred
+    /// and Ok(None) if the system was already aware of the cancellation.
+    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<Option<TransactionHandle>>;
     /// Try to find submitted transaction from previous submission loop (in this case we don't have a TransactionHandle)
     async fn recover_pending_transaction(
         &self,
@@ -237,7 +241,8 @@ impl<'a> Submitter<'a> {
                         .cancel_transaction(transaction, &gas_price, nonce)
                         .await
                     {
-                        Ok(handle) => transactions.push((handle, gas_price)),
+                        Ok(Some(handle)) => transactions.push((handle, gas_price)),
+                        Ok(None) => tracing::warn!("cancellation already known"),
                         Err(err) => tracing::warn!("cancellation failed: {:?}", err),
                     }
                 }
@@ -415,7 +420,8 @@ impl<'a> Submitter<'a> {
                         .cancel_transaction(previous_tx, &gas_price, nonce)
                         .await
                     {
-                        Ok(handle) => transactions.push((handle, gas_price)),
+                        Ok(Some(handle)) => transactions.push((handle, gas_price)),
+                        Ok(None) => tracing::warn!("cancellation already known"),
                         Err(err) => tracing::warn!("cancellation failed: {:?}", err),
                     }
                 }
@@ -454,7 +460,15 @@ impl<'a> Submitter<'a> {
             // execute transaction
 
             match self.submit_api.submit_transaction(method.tx).await {
-                Ok(handle) => {
+                Ok(None) => {
+                    tracing::debug!(
+                        submitter = %submitter_name,
+                        "transaction already known",
+                    );
+                    // TODO figure out if `continue` is correct here
+                    continue;
+                }
+                Ok(Some(handle)) => {
                     tracing::debug!(
                         submitter = %submitter_name, ?handle,
                         "submitted transaction",
@@ -535,7 +549,7 @@ impl<'a> Submitter<'a> {
         transaction: &TransactionHandle,
         gas_price: &EstimatedGasPrice,
         nonce: U256,
-    ) -> Result<TransactionHandle> {
+    ) -> Result<Option<TransactionHandle>> {
         let cancel_handle = CancelHandle {
             submitted_transaction: *transaction,
             noop_transaction: self.build_noop_transaction(&gas_price.bump(3.), nonce),

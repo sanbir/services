@@ -55,7 +55,7 @@ impl TransactionSubmitting for CustomNodesApi {
     async fn submit_transaction(
         &self,
         tx: TransactionBuilder<DynTransport>,
-    ) -> Result<TransactionHandle> {
+    ) -> Result<Option<TransactionHandle>> {
         tracing::debug!("Custom nodes submit transaction entered");
         let transaction_request = tx.build().now_or_never().unwrap().unwrap();
         let mut futures = self
@@ -86,10 +86,10 @@ impl TransactionSubmitting for CustomNodesApi {
                 Ok(tx_hash) => {
                     super::track_submission_success(&label, true);
                     tracing::debug!(%label, "created transaction with hash: {:?}", tx_hash);
-                    return Ok(TransactionHandle {
+                    return Ok(Some(TransactionHandle {
                         tx_hash,
                         handle: tx_hash,
-                    });
+                    }));
                 }
                 Err(err) => {
                     if matches!(
@@ -118,7 +118,7 @@ impl TransactionSubmitting for CustomNodesApi {
         }
     }
 
-    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<TransactionHandle> {
+    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<Option<TransactionHandle>> {
         self.submit_transaction(id.noop_transaction.clone()).await
     }
 

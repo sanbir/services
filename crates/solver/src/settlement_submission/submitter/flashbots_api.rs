@@ -34,7 +34,7 @@ impl TransactionSubmitting for FlashbotsApi {
     async fn submit_transaction(
         &self,
         tx: TransactionBuilder<Web3Transport>,
-    ) -> Result<TransactionHandle> {
+    ) -> Result<Option<TransactionHandle>> {
         let result = self
             .rpc
             .api::<PrivateNetwork>()
@@ -42,16 +42,23 @@ impl TransactionSubmitting for FlashbotsApi {
             .await;
 
         super::track_submission_success("flashbots", result.is_ok());
-
-        result
+        match result {
+            Ok(transaction) => Ok(Some(transaction)),
+            Err(error) => Err(error),
+        }
     }
 
     // https://docs.flashbots.net/flashbots-protect/rpc/cancellations
-    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<TransactionHandle> {
-        self.rpc
+    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<Option<TransactionHandle>> {
+        let result = self
+            .rpc
             .api::<PrivateNetwork>()
             .submit_raw_transaction(id.noop_transaction.clone())
-            .await
+            .await;
+        match result {
+            Ok(transaction) => Ok(Some(transaction)),
+            Err(e) => Err(e),
+        }
     }
 
     async fn recover_pending_transaction(

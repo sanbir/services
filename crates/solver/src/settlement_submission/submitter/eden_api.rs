@@ -85,7 +85,7 @@ impl TransactionSubmitting for EdenApi {
     async fn submit_transaction(
         &self,
         tx: TransactionBuilder<Web3Transport>,
-    ) -> Result<TransactionHandle> {
+    ) -> Result<Option<TransactionHandle>> {
         let tx_hash = match tx.clone().build().now_or_never() {
             Some(Ok(Transaction::Raw { hash, .. })) => hash,
             _ => bail!("Eden submission requires fully built raw transactions"),
@@ -105,31 +105,37 @@ impl TransactionSubmitting for EdenApi {
             })
             .await;
 
-        let successful = match &result {
-            Ok(_) => true,
+        match result {
+            Ok(transaction) => {
+                super::track_submission_success("eden", true);
+                Ok(Some(transaction))
+            }
             // Sometimes `submit_slot_transaction()` times out and the fallback submission
             // strategy reveals that the network is already aware of the transaction, either
             // because the `eth_submitSlotTx` actually worked, or the transaction became
             // public as part of another submission strategy (such as public mem-pool).
             Err(err) if err.to_string().contains("already known") => {
                 tracing::debug!(?tx_hash, "transaction already known");
-                true
+                Ok(None)
             }
             Err(err) => {
+                super::track_submission_success("eden", false);
                 tracing::debug!(?err, "transaction submission error");
-                false
+                Err(err)
             }
-        };
-        super::track_submission_success("eden", successful);
-
-        result
+        }
     }
 
-    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<TransactionHandle> {
-        self.rpc
+    async fn cancel_transaction(&self, id: &CancelHandle) -> Result<Option<TransactionHandle>> {
+        let result = self
+            .rpc
             .api::<PrivateNetwork>()
             .submit_raw_transaction(id.noop_transaction.clone())
-            .await
+            .await;
+        match result {
+            Ok(handle) => Ok(Some(handle)),
+            Err(err) => Err(err),
+        }
     }
 
     async fn recover_pending_transaction(
