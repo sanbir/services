@@ -18,6 +18,7 @@ pub enum SigningScheme {
     EthSign,
     Eip1271,
     PreSign,
+    EthFlow,
 }
 
 impl Default for SigningScheme {
@@ -32,6 +33,7 @@ pub enum Signature {
     Eip712(EcdsaSignature),
     EthSign(EcdsaSignature),
     Eip1271(Vec<u8>),
+    EthFlow(Vec<u8>),
     PreSign,
 }
 
@@ -59,6 +61,7 @@ impl Signature {
             SigningScheme::Eip712 => Signature::Eip712(Default::default()),
             SigningScheme::EthSign => Signature::EthSign(Default::default()),
             SigningScheme::Eip1271 => Signature::Eip1271(Default::default()),
+            SigningScheme::EthFlow => Signature::EthFlow(Default::default()),
             SigningScheme::PreSign => Signature::PreSign,
         }
     }
@@ -128,7 +131,8 @@ impl Signature {
                         .expect("scheme is an ecdsa scheme"),
                 )
             }
-            SigningScheme::Eip1271 => Self::Eip1271(bytes.to_vec()),
+            SigningScheme::Eip1271  => Self::Eip1271(bytes.to_vec()),
+            SigningScheme::EthFlow => Self::EthFlow(bytes.to_vec()),
             SigningScheme::PreSign => {
                 ensure!(
                     bytes.is_empty() || bytes.len() == 20,
@@ -144,6 +148,7 @@ impl Signature {
         match self {
             Self::Eip712(signature) | Self::EthSign(signature) => signature.to_bytes().to_vec(),
             Self::Eip1271(signature) => signature.clone(),
+            Self::EthFlow(signature) => signature.clone(),
             Self::PreSign => Vec::new(),
         }
     }
@@ -153,14 +158,19 @@ impl Signature {
             Signature::Eip712(_) => SigningScheme::Eip712,
             Signature::EthSign(_) => SigningScheme::EthSign,
             Signature::Eip1271(_) => SigningScheme::Eip1271,
+            Signature::EthFlow(_) => SigningScheme::EthFlow,
             Signature::PreSign => SigningScheme::PreSign,
         }
     }
 
+
     pub fn encode_for_settlement(&self, owner: H160) -> Vec<u8> {
+        // Todo get the Eth-Flow address from contract artificats
+        let eth_flow_contract_address = H160([1u8; 20]);
         match self {
             Self::Eip712(signature) | Self::EthSign(signature) => signature.to_bytes().to_vec(),
             Self::Eip1271(signature) => [owner.as_bytes(), signature].concat(),
+            Self::EthFlow(signature) => [eth_flow_contract_address.as_bytes(), signature].concat(),
             Self::PreSign => owner.as_bytes().to_vec(),
         }
     }
@@ -225,7 +235,7 @@ impl SigningScheme {
         match self {
             Self::Eip712 => Some(EcdsaSigningScheme::Eip712),
             Self::EthSign => Some(EcdsaSigningScheme::EthSign),
-            Self::Eip1271 | Self::PreSign => None,
+            Self::Eip1271 | Self::EthFlow | Self::PreSign => None,
         }
     }
 }
@@ -435,8 +445,16 @@ mod tests {
             Signature::default_with(SigningScheme::Eip1271)
         );
         assert_eq!(
+            Signature::from_bytes(SigningScheme::EthFlow, &[]).unwrap(),
+            Signature::default_with(SigningScheme::EthFlow)
+        );
+        assert_eq!(
             Signature::from_bytes(SigningScheme::Eip1271, &[1, 2, 3]).unwrap(),
             Signature::Eip1271(vec![1, 2, 3]),
+        );
+        assert_eq!(
+            Signature::from_bytes(SigningScheme::EthFlow, &[1, 2, 3]).unwrap(),
+            Signature::EthFlow(vec![1, 2, 3]),
         );
     }
 
@@ -455,6 +473,7 @@ mod tests {
             Vec::<u8>::new()
         );
         assert_eq!(Signature::Eip1271(vec![1, 2, 3]).to_bytes(), vec![1, 2, 3]);
+        assert_eq!(Signature::EthFlow(vec![1, 2, 3]).to_bytes(), vec![1, 2, 3]);
     }
 
     #[test]
@@ -511,6 +530,13 @@ mod tests {
                 }),
             ),
             (
+                Signature::EthFlow(vec![1, 2, 3]),
+                json!({
+                    "signingScheme": "ethflow",
+                    "signature": "0x010203",
+                }),
+            ),
+            (
                 Signature::PreSign,
                 json!({
                     "signingScheme": "presign",
@@ -536,6 +562,9 @@ mod tests {
             }),
             json!({
                 "signingScheme": "eip1271",
+            }),
+            json!({
+                "signingScheme": "ethflow",
             }),
             json!({
                 "signingScheme": "presign",

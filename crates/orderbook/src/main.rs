@@ -537,6 +537,7 @@ async fn main() {
         args.max_order_validity_period,
         SignatureConfiguration {
             eip1271: args.enable_eip1271_orders,
+            ethflow: args.enable_ethflow_orders,
             presign: args.enable_presign_orders,
         },
         bad_token_detector.clone(),

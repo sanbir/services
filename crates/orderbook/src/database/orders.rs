@@ -142,6 +142,7 @@ pub enum DbSigningScheme {
     Eip712,
     EthSign,
     Eip1271,
+    EthFlow,
     PreSign,
 }
 
@@ -151,6 +152,7 @@ impl DbSigningScheme {
             SigningScheme::Eip712 => Self::Eip712,
             SigningScheme::EthSign => Self::EthSign,
             SigningScheme::Eip1271 => Self::Eip1271,
+            SigningScheme::EthFlow => Self::EthFlow,
             SigningScheme::PreSign => Self::PreSign,
         }
     }
@@ -160,6 +162,7 @@ impl DbSigningScheme {
             Self::Eip712 => SigningScheme::Eip712,
             Self::EthSign => SigningScheme::EthSign,
             Self::Eip1271 => SigningScheme::Eip1271,
+            Self::EthFlow => SigningScheme::EthFlow,
             Self::PreSign => SigningScheme::PreSign,
         }
     }

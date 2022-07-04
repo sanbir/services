@@ -451,6 +451,7 @@ impl OrderValidating for OrderValidator {
 #[derive(Debug, PartialEq, Default)]
 pub struct SignatureConfiguration {
     pub eip1271: bool,
+    pub ethflow: bool,
     pub presign: bool,
 }
 
@@ -460,6 +461,7 @@ impl SignatureConfiguration {
     pub fn off_chain() -> Self {
         Self {
             eip1271: false,
+            ethflow: false,
             presign: false,
         }
     }
@@ -468,6 +470,7 @@ impl SignatureConfiguration {
     pub fn all() -> Self {
         Self {
             eip1271: true,
+            ethflow: true,
             presign: true,
         }
     }
@@ -477,6 +480,7 @@ impl SignatureConfiguration {
         match signing_scheme {
             SigningScheme::Eip712 | SigningScheme::EthSign => true,
             SigningScheme::Eip1271 => self.eip1271,
+            SigningScheme::EthFlow => self.ethflow,
             SigningScheme::PreSign => self.presign,
         }
     }
