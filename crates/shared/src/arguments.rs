@@ -133,10 +133,10 @@ pub struct Arguments {
     #[clap(long, env, arg_enum, ignore_case = true, use_value_delimiter = true)]
     pub balancer_factories: Option<Vec<BalancerFactoryKind>>,
 
-    /// The list of disabled 1Inch protocols. By default, the `PMM1` protocol
-    /// (representing a private market maker) is disabled as it seems to
-    /// produce invalid swaps.
-    #[clap(long, env, default_value = "PMM1", use_value_delimiter = true)]
+    /// The list of disabled 1Inch protocols. By default, `PMM1` and `PMM3`
+    /// (representing private market makers) are disabled as they seem to
+    /// produce invalid swaps and quotes.
+    #[clap(long, env, default_value = "PMM1,PMM3", use_value_delimiter = true)]
     pub disabled_one_inch_protocols: Vec<String>,
 
     /// The 1Inch REST API URL to use.
