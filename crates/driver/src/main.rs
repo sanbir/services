@@ -14,6 +14,7 @@ use shared::{
 use solver::{
     arguments::TransactionStrategyArg,
     interactions::allowances::AllowanceManager,
+    liquidity::order_converter::OrderConverter,
     settlement_submission::{
         submitter::{
             custom_nodes_api::CustomNodesApi, eden_api::EdenApi, flashbots_api::FlashbotsApi,
@@ -35,6 +36,7 @@ struct CommonComponents {
     chain_id: u64,
     settlement_contract: contracts::GPv2Settlement,
     native_token_contract: WETH9,
+    order_converter: Arc<OrderConverter>,
 }
 
 async fn init_common_components(args: &Arguments) -> CommonComponents {
@@ -63,6 +65,11 @@ async fn init_common_components(args: &Arguments) -> CommonComponents {
         .await
         .expect("couldn't load deployed native token");
 
+    let order_converter = Arc::new(OrderConverter {
+        native_token: native_token_contract.clone(),
+        fee_objective_scaling_factor: args.fee_objective_scaling_factor,
+    });
+
     CommonComponents {
         client,
         web3,
@@ -70,6 +77,7 @@ async fn init_common_components(args: &Arguments) -> CommonComponents {
         chain_id,
         settlement_contract,
         native_token_contract,
+        order_converter,
     }
 }
 
@@ -108,6 +116,7 @@ async fn build_solvers(common: &CommonComponents, args: &Arguments) -> Vec<Box<d
                 token_info_fetcher.clone(),
                 buffer_retriever.clone(),
                 allowance_mananger.clone(),
+                common.order_converter.clone(),
                 http_solver_cache.clone(),
             )) as Box<dyn Solver>
         })
